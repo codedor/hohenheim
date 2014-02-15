@@ -13,6 +13,15 @@ var Fuery     = alchemy.use('fuery'),
  */
 alchemy.create(function SiteDispatcher() {
 
+	/**
+	 * Prepare the site dispatcher
+	 *
+	 * @author   Jelle De Loecker   <jelle@codedor.be>
+	 * @since    0.0.1
+	 * @version  0.0.1
+	 *
+	 * @param    {Object}   options
+	 */
 	this.init = function init(options) {
 
 		var that = this;
@@ -23,6 +32,12 @@ alchemy.create(function SiteDispatcher() {
 
 		// Get the site model
 		this.Site = Model.get('Site');
+
+		// Count the number of made hits
+		this.hitCounter = 0;
+
+		// Count the number of made connections
+		this.connectionCounter = 0;
 
 		// Store sites by id in here
 		this.ids = {};
@@ -60,7 +75,16 @@ alchemy.create(function SiteDispatcher() {
 		this.startProxy();
 	};
 
+	/**
+	 * Start the proxy server
+	 *
+	 * @author   Jelle De Loecker   <jelle@codedor.be>
+	 * @since    0.0.1
+	 * @version  0.0.1
+	 */
 	this.startProxy = function startProxy() {
+
+		var that = this;
 
 		// Create the proxy
 		this.proxy = httpProxy.createProxyServer({});
@@ -68,17 +92,59 @@ alchemy.create(function SiteDispatcher() {
 		// Create the server
 		this.server = http.createServer(this.request.bind(this));
 
+		// Make the proxy server listen on the given port
 		this.server.listen(this.proxyPort);
+
+		// Listen for error events
+		this.proxy.on('error', this.requestError.bind(this));
+
+		// Intercept proxy responses
+		//this.proxy.on('proxyRes', this.response.bind(this));
 	};
 
-	this.request = function request(req, res) {
+	/**
+	 * Handle request errors
+	 *
+	 * @author   Jelle De Loecker   <jelle@codedor.be>
+	 * @since    0.0.1
+	 * @version  0.0.1
+	 * 
+	 * @param    {Error}              error
+	 * @param    {IncommingMessage}   req
+	 * @param    {ServerResponse}     res
+	 */
+	this.requestError = function requestError(error, req, res) {
 
-		var that = this,
-		    domain,
-		    site;
+		if (!req.errorCount) {
+			req.errorCount = 1;
+		} else {
+			req.errorCount++;
+		}
 
-		// Get the host from the headers
-		domain = req.headers.host;
+		// Retry 4 times
+		if (req.errorCount > 4) {
+			log.error('Retried connection ' + req.connectionId + ' four times, giving up');
+			res.writeHead(502, {'Content-Type': 'text/plain'});
+			res.end('Failed to reach server!');
+		} else {
+			// Make the request again
+			this.request(req, res);
+		}
+	};
+
+	/**
+	 * Get the site object based on the headers
+	 *
+	 * @author   Jelle De Loecker   <jelle@codedor.be>
+	 * @since    0.0.1
+	 * @version  0.0.1
+	 * 
+	 * @param    {Object}   headers
+	 */
+	this.getSite = function getSite(headers) {
+
+		// Get the host (including port)
+		var domain = headers.host;
 
 		// Split it by colons
 		domain = domain.split(':');
@@ -86,16 +152,58 @@ alchemy.create(function SiteDispatcher() {
 		// The first part is the domain
 		domain = domain[0];
 
-		pr('Looking for "' + domain.bold + '"');
+		return this.domains[domain];
+	};
 
-		site = this.domains[domain];
+	/**
+	 * Handle a new proxy request
+	 *
+	 * @author   Jelle De Loecker   <jelle@codedor.be>
+	 * @since    0.0.1
+	 * @version  0.0.1
+	 * 
+	 * @param    {IncommingMessage}   req
+	 * @param    {ServerResponse}     res
+	 */
+	this.request = function request(req, res) {
+
+		var that = this,
+		    domain,
+		    read,
+		    site,
+		    hit;
+
+		req.startTime = Date.now();
+
+		// Get the hit id
+		hit = ++this.hitCounter;
+
+		if (!req.socket.connectionId) {
+
+			req.socket.connectionId = ++this.connectionCounter;
+			res.socket.connectionId = req.socket.connectionId;
+		}
+
+		req.connectionId = req.socket.connectionId;
+		req.hitId = hit;
+
+		req.headers.hitId = hit;
+		req.headers.connectionId = req.connectionId;
+		
+		site = this.getSite(req.headers);
 
 		if (!site) {
 			res.writeHead(404, {'Content-Type': 'text/plain'});
 			res.end('There is no such domain here!');
 		} else {
+
+			// Only register this hit if the error count has not been set
+			// meaning it's the first time this request has passed through here
+			if (!req.errorCount) {
+				site.registerHit(req, res);
+			}
+
 			site.getAddress(function gotAddress(address) {
-				pr('Redirecting to ' + String(address).bold.yellow);
 				that.proxy.web(req, res, {target: address});
 			});
 		}
@@ -108,6 +216,8 @@ alchemy.create(function SiteDispatcher() {
 	 * @author   Jelle De Loecker   <jelle@codedor.be>
 	 * @since    0.0.1
 	 * @version  0.0.1
+	 *
+	 * @param    {alchemy.classes.Site}   site   A site instance
 	 */
 	this.getPort = function getPort(site) {
 
@@ -123,11 +233,26 @@ alchemy.create(function SiteDispatcher() {
 	};
 
 	/**
+	 * Free up the given port number
+	 *
+	 * @author   Jelle De Loecker   <jelle@codedor.be>
+	 * @since    0.0.1
+	 * @version  0.0.1
+	 *
+	 * @param    {Number}   portNumber
+	 */
+	this.freePort = function freePort(portNumber) {
+		delete this.ports[portNumber];
+	};
+
+	/**
 	 * Update the sites
 	 *
 	 * @author   Jelle De Loecker   <jelle@codedor.be>
 	 * @since    0.0.1
 	 * @version  0.0.1
+	 *
+	 * @param    {Object}   sitesById   An object of site records by their id
 	 */
 	this.update = function update(sitesById) {
 
@@ -175,6 +300,16 @@ alchemy.create(function SiteDispatcher() {
  */
 alchemy.create(function Site() {
 
+	/**
+	 * Initialize this site instance
+	 *
+	 * @author   Jelle De Loecker   <jelle@codedor.be>
+	 * @since    0.0.1
+	 * @version  0.0.1
+	 *
+	 * @param    {alchemy.classes.SiteDispatcher}   siteDispatcher
+	 * @param    {Object}                           record
+	 */
 	this.init = function init(siteDispatcher, record) {
 
 		// The parent site dispatcher
@@ -189,8 +324,20 @@ alchemy.create(function Site() {
 		// The amount of running processes
 		this.running = 0;
 
+		// The incoming bytes
+		this.incoming = 0;
+
+		// The outgoing bytes
+		this.outgoing = 0;
+
+		// Counters per path
+		this.pathCounters = {};
+
 		// The redirecthost
 		this.redirectHost = siteDispatcher.redirectHost;
+
+		// The request log model
+		this.Log = Model.get('Request');
 
 		this.update(record);
 	};
@@ -201,17 +348,20 @@ alchemy.create(function Site() {
 	 * @author   Jelle De Loecker   <jelle@codedor.be>
 	 * @since    0.0.1
 	 * @version  0.0.1
+	 *
+	 * @param    {Function}   callback
 	 */
 	this.start = function start(callback) {
 
-		var process,
+		var that = this,
+		    process,
 		    port;
 
 		// Get an open port number
 		port = this.parent.getPort();
 
 		// Start the server
-		process = child.fork(this.script, ['--port=' + port], {cwd: this.cwd});
+		process = child.fork(this.script, ['--port=' + port, 'hohenchild'], {cwd: this.cwd});
 
 		process.port = port;
 
@@ -219,6 +369,12 @@ alchemy.create(function Site() {
 
 		this.running++;
 
+		// Listen for exit events
+		process.on('exit', function(code, signal) {
+			that.processExit(process, code, signal);
+		});
+
+		// Listen for the message that tells us the server is ready
 		process.on('message', function listenForReady(message) {
 
 			if (typeof message !== 'object') {
@@ -237,8 +393,31 @@ alchemy.create(function Site() {
 				process.removeListener('message', listenForReady);
 			}
 		});
+	};
 
-		// @todo: implement error listeners
+	/**
+	 * Handle child process exits
+	 *
+	 * @author   Jelle De Loecker   <jelle@codedor.be>
+	 * @since    0.0.1
+	 * @version  0.0.1
+	 *
+	 * @param    {ChildProcess}   process
+	 * @param    {Number}         code
+	 * @param    {String}         signal
+	 */
+	this.processExit = function processExit(process, code, signal) {
+
+		// Tell the parent this port is free again
+		this.parent.freePort(process.port);
+
+		// Decrease the running counter
+		this.running--;
+
+		// Remove the process from the processes object
+		delete this.processes[process.pid];
+
+		log.warn('Process ' + String(process.pid).bold + ' for site ' + this.name.bold + ' has exited with code ' + String(code).bold + ' and signal ' + String(signal).bold);
 	};
 
 	/**
@@ -247,11 +426,17 @@ alchemy.create(function Site() {
 	 * @author   Jelle De Loecker   <jelle@codedor.be>
 	 * @since    0.0.1
 	 * @version  0.0.1
+	 *
+	 * @param    {Function}   callback
 	 */
 	this.getAddress = function getAddress(callback) {
 
 		var that = this,
 		    fnc;
+
+		if (this.url) {
+			return callback(this.url);
+		}
 
 		fnc = function addressCreator() {
 			var pid;
@@ -269,7 +454,6 @@ alchemy.create(function Site() {
 		}
 	};
 
-
 	/**
 	 * Remove this site completely
 	 *
@@ -278,10 +462,7 @@ alchemy.create(function Site() {
 	 * @version  0.0.1
 	 */
 	this.remove = function remove() {
-
 		this.cleanParent();
-
-
 	};
 
 	/**
@@ -320,12 +501,12 @@ alchemy.create(function Site() {
 	 * @author   Jelle De Loecker   <jelle@codedor.be>
 	 * @since    0.0.1
 	 * @version  0.0.1
+	 *
+	 * @param    {Object}   record
 	 */
 	this.update = function update(record) {
 
 		var that = this;
-
-		pr('Updating site ' + this.id);
 
 		// The db record itself
 		this._record = record;
@@ -333,7 +514,13 @@ alchemy.create(function Site() {
 		this.name = record.name;
 		this.domains = record.domain || [];
 		this.script = record.script;
-		this.cwd = path.dirname(this.script);
+
+		if (this.script) {
+			this.cwd = path.dirname(this.script);
+		}
+
+		// We can also proxy to an existing url (apache sites)
+		this.url = record.url;
 
 		// Remove this instance from the parent
 		this.remove();
@@ -348,6 +535,85 @@ alchemy.create(function Site() {
 
 		// Re-add the instance by name
 		this.parent.names[this.name] = this;
+	};
+
+	/**
+	 * This site has been hit,
+	 * register some metrics
+	 *
+	 * @author   Jelle De Loecker   <jelle@codedor.be>
+	 * @since    0.0.1
+	 * @version  0.0.1
+	 * 
+	 * @param    {IncommingMessage}   req
+	 * @param    {ServerResponse}     res
+	 * @param    {Function}           callback
+	 */
+	this.registerHit = function registerHit(req, res, callback) {
+
+		var that = this,
+		    bytesPrevRead,
+		    remoteAddress,
+		    bytesRead,
+		    fullPath,
+		    path,
+		    read;
+
+		fullPath = req.url;
+
+		// Get the wanted path
+		path = fullPath.split('?')[0];
+
+		// Get the previous amount of bytes read on this socket
+		bytesPrevRead = req.socket.prevRead || 0;
+		bytesRead = req.socket.bytesRead;
+
+		// The total amount of bytes read for this request
+		read = bytesRead - bytesPrevRead;
+
+		// Set the new previous read amount of bytes
+		req.socket.prevRead = req.socket.bytesRead;
+
+		// Get the remote address
+		remoteAddress = req.socket.remoteAddress;
+
+		res.on('finish', function finalizeHitRegister() {
+
+			var bytesPrevWritten = req.socket.prevWritten || 0,
+			    bytesWritten = req.socket.bytesWritten,
+			    sent = bytesWritten - bytesPrevWritten;
+
+			that.incoming += read;
+			that.outgoing += sent;
+
+			if (typeof that.pathCounters[path] === 'undefined') {
+				that.pathCounters[path] = {
+					incoming: 0,
+					outgoing: 0
+				};
+			}
+
+			that.pathCounters[path].incoming += read;
+			that.pathCounters[path].outgoing += sent;
+
+			// Set the new written amount
+			req.socket.prevWritten = bytesWritten;
+
+			that.Log.registerHit({
+				site_id: that.id,
+				host: req.headers.host,
+				path: fullPath,
+				status: res.statusCode,
+				request_size: read,
+				response_size: sent,
+				referer: req.headers.referer,
+				user_agent: req.headers['user-agent'],
+				remote_address: remoteAddress,
+				duration: Date.now() - req.startTime
+			});
+
+			pr(that.name.bold + ' has now received ' + ~~(that.incoming/1024) + ' KiBs and submitted ' + ~~(that.outgoing/1024) + ' KiBs');
+		});
 	};
 
 });

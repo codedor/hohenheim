@@ -24,7 +24,7 @@ process.on('uncaughtException', function(error) {
 
 	// Indicate we caught an exception
 	log.error('Uncaught Exception!', {err: error});
-	
+
 	// If we found a render object, we can cut the connection to the client
 	if (render) {
 		render.res.send(500, 'Uncaught Exception!');

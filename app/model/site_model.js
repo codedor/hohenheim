@@ -28,6 +28,9 @@ Model.extend(function SiteModel() {
 			},
 			script: {
 				type: 'Path'
+			},
+			url: {
+				type: 'String'
 			}
 		};
 	};
