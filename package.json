@@ -1,0 +1,19 @@
+{
+	"name": "hohenheim",
+	"description": "The hohenheim dispatcher",
+	"version": "0.0.1",
+	"dependencies": {
+		"alchemymvc": "0.0.x",
+		"http-proxy": "1.0.2",
+		"chimera": "git+https://github.com/codedor/alchemy-chimera.git#master",
+		"styleboost": "git+https://github.com/codedor/alchemy-styleboost.git#master",
+		"jquery": "git+https://github.com/codedor/alchemy-jquery.git#master",
+		"jsoneditor": "git+https://github.com/skerit/alchemy-jsoneditor.git#master",
+		"select2": "git+https://github.com/skerit/alchemy-select2.git#master",
+		"acl": "git+https://github.com/codedor/alchemy-acl.git#master",
+		"menu": "git+https://github.com/codedor/alchemy-menu.git#master"
+	},
+	"engines": {
+		"node": ">=0.10"
+	}
+}
