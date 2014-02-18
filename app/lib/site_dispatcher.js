@@ -2,7 +2,8 @@ var Fuery     = alchemy.use('fuery'),
     child     = require('child_process'),
     httpProxy = require('http-proxy'),
     http      = require('http'),
-    path      = require('path');
+    path      = require('path'),
+    procmon   = require('process-monitor');
 
 /**
  * The Site Dispatcher class
@@ -354,6 +355,7 @@ alchemy.create(function Site() {
 	this.start = function start(callback) {
 
 		var that = this,
+		    processStats,
 		    process,
 		    port;
 
@@ -369,9 +371,35 @@ alchemy.create(function Site() {
 
 		this.running++;
 
+		// Handle cpu & memory information from the process
+		processStats = function processStats(stats) {
+			that.processStats(process, stats.cpu, stats.mem);
+		};
+
+		// Attach process monitor
+		process.monitor = procmon.monitor({
+			pid: process.pid,
+			interval: 6000,
+			technique: 'proc'
+		}).start();
+
+		// Listen for process information
+		process.monitor.on('stats', processStats);
+
 		// Listen for exit events
 		process.on('exit', function(code, signal) {
+
+			// Clean up the process
 			that.processExit(process, code, signal);
+
+			// Stop the process monitor
+			process.monitor.stop();
+
+			// Remove the process monitor listener
+			process.monitor.removeListener('stats', processStats);
+
+			// Delete the monitor from the process
+			delete process.monitor;
 		});
 
 		// Listen for the message that tells us the server is ready
@@ -393,6 +421,23 @@ alchemy.create(function Site() {
 				process.removeListener('message', listenForReady);
 			}
 		});
+	};
+
+	/**
+	 * Handle child process cpu & memory information
+	 *
+	 * @author   Jelle De Loecker   <jelle@codedor.be>
+	 * @since    0.0.1
+	 * @version  0.0.1
+	 *
+	 * @param    {ChildProcess}   process
+	 * @param    {Number}         cpu       Cpu usage in percentage
+	 * @param    {Number}         mem       Memory usage in kilobytes
+	 */
+	this.processStats = function processStats(process, cpu, mem) {
+		if (cpu > 50) {
+			pr('Site "' + this.name.bold + '" process id ' + process.pid + ' is using ' + ~~cpu + '% cpu and ' + ~~(mem/1024) + ' MiB memory');
+		}
 	};
 
 	/**
