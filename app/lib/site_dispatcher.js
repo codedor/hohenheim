@@ -360,12 +360,16 @@ alchemy.create(function Site() {
 		    port;
 
 		// Get an open port number
-		port = this.parent.getPort();
+		port = this.parent.getPort(this);
 
 		// Start the server
 		process = child.fork(this.script, ['--port=' + port, 'hohenchild'], {cwd: this.cwd});
 
+		// Store the port it should be running on
 		process.port = port;
+
+		// Store the time this was started
+		process.startTime = Date.now();
 
 		this.processes[process.pid] = process;
 
@@ -394,9 +398,6 @@ alchemy.create(function Site() {
 
 			// Stop the process monitor
 			process.monitor.stop();
-
-			// Remove the process monitor listener
-			process.monitor.removeListener('stats', processStats);
 
 			// Delete the monitor from the process
 			delete process.monitor;
@@ -435,8 +436,12 @@ alchemy.create(function Site() {
 	 * @param    {Number}         mem       Memory usage in kilobytes
 	 */
 	this.processStats = function processStats(process, cpu, mem) {
+
+		process.cpu = ~~cpu;
+		process.mem = ~~(mem/1024);
+
 		if (cpu > 50) {
-			pr('Site "' + this.name.bold + '" process id ' + process.pid + ' is using ' + ~~cpu + '% cpu and ' + ~~(mem/1024) + ' MiB memory');
+			pr('Site "' + this.name.bold + '" process id ' + process.pid + ' is using ' + process.cpu + '% cpu and ' + process.mem + ' MiB memory');
 		}
 	};
 
@@ -661,4 +666,119 @@ alchemy.create(function Site() {
 		});
 	};
 
+});
+
+/**
+ * Make basic field information about a model available
+ *
+ * @author   Jelle De Loecker   <jelle@kipdola.be>
+ * @since    0.0.1
+ * @version  0.0.1
+ */
+Resource.register('sitestat', function(data, callback) {
+
+	var siteId   = alchemy.castObjectId(data.id),
+	    result   = {},
+	    process,
+	    site,
+	    pid;
+
+	if (!siteId) {
+		return callback({err: 'no id given'});
+	}
+
+	site = alchemy.dispatcher.ids[siteId];
+
+	if (!site) {
+		return callback({err: 'site does not exist'});
+	}
+
+	// Get the amount of processes running
+	result.running = site.running;
+
+	result.processes = {};
+
+	// Get the pids
+	for (pid in site.processes) {
+
+		process = site.processes[pid];
+
+		result.processes[pid] = {
+			startTime: process.startTime,
+			port: process.port,
+			cpu: process.cpu,
+			mem: process.mem
+		};
+	}
+
+	result.incoming = site.incoming;
+	result.outgoing = site.outgoing;
+
+	callback(result);
+});
+
+/**
+ * Kill the requested pid
+ *
+ * @author   Jelle De Loecker   <jelle@kipdola.be>
+ * @since    0.0.1
+ * @version  0.0.1
+ */
+Resource.register('sitestat-kill', function(data, callback) {
+
+	var siteId   = alchemy.castObjectId(data.id),
+	    result   = {},
+	    process,
+	    site,
+	    pid;
+
+	if (!siteId) {
+		return callback({err: 'no id given'});
+	}
+
+	site = alchemy.dispatcher.ids[siteId];
+
+	if (!site) {
+		return callback({err: 'site does not exist'});
+	}
+
+	process = site.processes[data.pid];
+
+	if (!process) {
+		return callback({err: 'pid does not exist'});
+	}
+
+	process.kill();
+
+	callback({success: 'process killed'});
+});
+
+/**
+ * Start a new process
+ *
+ * @author   Jelle De Loecker   <jelle@kipdola.be>
+ * @since    0.0.1
+ * @version  0.0.1
+ */
+Resource.register('sitestat-start', function(data, callback) {
+
+	var siteId   = alchemy.castObjectId(data.id),
+	    result   = {},
+	    process,
+	    site,
+	    pid;
+
+	if (!siteId) {
+		return callback({err: 'no id given'});
+	}
+
+	site = alchemy.dispatcher.ids[siteId];
+
+	if (!site) {
+		return callback({err: 'site does not exist'});
+	}
+
+	site.start();
+
+	callback({success: 'process started'});
 });

@@ -33,6 +33,27 @@ Model.extend(function SiteModel() {
 				type: 'String'
 			}
 		};
+
+		this.modelEdit = {
+			general: {
+				title: __('chimera', 'General'),
+				fields: [
+					'name',
+					'domain',
+					'script',
+					'url'
+				]
+			},
+			stats: {
+				title: 'Stats',
+				fields: [
+					{
+						field: '_id',
+						type: 'site_stat'
+					}
+				]
+			}
+		};
 	};
 
 	this.init = function init() {

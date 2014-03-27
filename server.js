@@ -31,13 +31,13 @@ process.on('uncaughtException', function(error) {
 	}
 });
 
-// Create the dispatcher
-var Dispatcher = new alchemy.classes.SiteDispatcher({
-	redirectHost: '10.20.1.1'
-});
-
-alchemy.ready(function onAlchemyReady() {
+alchemy.start(function onAlchemyReady() {
 
 	// Do certain things when alchemy is ready
+
+	// Create the dispatcher
+	alchemy.dispatcher = new alchemy.classes.SiteDispatcher({
+		redirectHost: '10.20.1.1'
+	});
 
 });

@@ -1,0 +1,16 @@
+<%
+
+asset.script(['hohenheim/sitestats'], {block: 'head'});
+
+start('wrapper'); %>
+<div class="form-group">
+	<label class="col-sm-2 control-label">Stats:</label>
+	<div class="col-sm-10 controls" data-site-control>
+		<div data-site-stats data-site-id="<%= item.value %>">
+		</div>
+		<div>
+			<button class="btn btn-success" data-start-process data-site-id="<%= item.value %>">Start new process</button>
+		</div>
+	</div>
+</div>
+<% end('wrapper') %>
