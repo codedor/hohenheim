@@ -5,8 +5,36 @@
  *
  * @author   Jelle De Loecker   <jelle@codedor.be>
  * @since    0.0.1
- * @version  0.0.1
+ * @version  0.1.0
  */
+var Request = Function.inherits('AppModel', function RequestModel(options) {
+	RequestModel.super.call(this, options);
+});
+
+/**
+ * Constitute the class wide schema
+ *
+ * @author   Jelle De Loecker <jelle@kipdola.be>
+ * @since    0.1.0
+ * @version  0.1.0
+ */
+Request.constitute(function addFields() {
+
+	// @todo: disable updated
+
+	this.addField('host', 'String');
+	this.addField('path', 'String');
+	this.addField('status', 'Number');
+	this.addField('request_size', 'Number');
+	this.addField('response_size', 'Number');
+	this.addField('referer', 'String');
+	this.addField('user_agent', 'String');
+	this.addField('remote_address', 'String');
+	this.addField('duration', 'Number');
+});
+
+return;
+
 Model.extend(function RequestModel() {
 
 	this.preInit = function preInit() {

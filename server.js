@@ -22,6 +22,8 @@ process.on('uncaughtException', function(error) {
 	// Try getting the render object from the arguments
 	var render = alchemy.getRenderObject(error.arguments);
 
+	console.log(error.stack)
+
 	// Indicate we caught an exception
 	log.error('Uncaught Exception!', {err: error});
 

@@ -4,11 +4,9 @@
  * @constructor
  *
  * @author   Jelle De Loecker   <jelle@kipdola.be>
- * @since    0.0.1
- * @version  0.0.1
+ * @since    0.1.0
+ * @version  0.1.0
  */
-Model.extend(function AppModel() {
-
-	this.useTable = false;
-	
+var AppModel = Function.inherits('Model', function AppModel(options) {
+	AppModel.super.call(this, options);
 });

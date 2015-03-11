@@ -12,6 +12,99 @@ var Fuery = alchemy.use('fuery'),
  * @since    0.0.1
  * @version  0.0.1
  */
+var Site = Function.inherits('AppModel', function SiteModel(options) {
+
+	var chimera,
+	    list,
+	    edit;
+
+	SiteModel.super.call(this, options);
+
+	this.addBehaviour('revision');
+
+	// Create the chimera behaviour
+	chimera = this.addBehaviour('chimera');
+
+	// Get the list group
+	list = chimera.getActionFields('list');
+
+	list.addField('name');
+	list.addField('domain');
+	list.addField('script');
+
+	// Get the edit group
+	edit = chimera.getActionFields('edit');
+
+	edit.addField('name');
+	edit.addField('domain');
+	edit.addField('script');
+	edit.addField('url');
+});
+
+/**
+ * Constitute the class wide schema
+ *
+ * @author   Jelle De Loecker <jelle@kipdola.be>
+ * @since    0.1.0
+ * @version  0.1.0
+ */
+Site.constitute(function addFields() {
+
+	this.addField('name', 'String');
+	this.addField('domain', 'String', {array: true});
+	this.addField('script', 'Path');
+	this.addField('url', 'String');
+});
+
+/**
+ * Get all the sites in the database
+ *
+ * @author   Jelle De Loecker   <jelle@codedor.be>
+ * @since    0.0.1
+ * @version  0.0.1
+ */
+Site.setMethod(function getSites(callback) {
+
+	var that = this;
+
+	that.find('all', function(err, results) {
+
+		var byName = {},
+		    byDomain = {},
+		    byId = {};
+
+		console.log('»»»»»»»»»»', err, results)
+
+		results.forEach(function eachSite(site) {
+
+
+
+			// Store it by each domain name
+			site.domain.forEach(function(domainName) {
+				byDomain[domainName] = site;
+			});
+
+			// Store it by site name
+			byName[site.name] = site;
+
+			// Store it by id
+			byId[site._id] = site;
+		});
+
+		alchemy.overwrite(sitesByDomain, byDomain);
+		alchemy.overwrite(sitesByName, byName);
+		alchemy.overwrite(sitesById, byId);
+
+		// Emit the siteUpdate event
+		that.emit('siteUpdate', sitesById, sitesByDomain, sitesByName);
+
+		if (callback) {
+			callback(sitesById, sitesByDomain, sitesByName);
+		}
+	});
+});
+
+return
 Model.extend(function SiteModel() {
 
 	this.preInit = function preInit() {
@@ -44,8 +137,8 @@ Model.extend(function SiteModel() {
 					'url'
 				]
 			},
-			stats: {
-				title: 'Stats',
+			control: {
+				title: 'Control',
 				fields: [
 					{
 						field: '_id',
@@ -78,49 +171,5 @@ Model.extend(function SiteModel() {
 
 	};
 
-	/**
-	 * Get all the sites in the database
-	 *
-	 * @author   Jelle De Loecker   <jelle@codedor.be>
-	 * @since    0.0.1
-	 * @version  0.0.1
-	 */
-	this.getSites = function getSites(callback) {
-
-		var that = this;
-
-		that.find('all', function(err, results) {
-
-			var byName = {},
-			    byDomain = {},
-			    byId = {};
-
-			results.filter(function(value) {
-
-				var site = value['Site'];
-
-				// Store it by each domain name
-				site.domain.filter(function(domainName) {
-					byDomain[domainName] = site;
-				});
-
-				// Store it by site name
-				byName[site.name] = site;
-
-				// Store it by id
-				byId[site._id] = site;
-			});
-
-			alchemy.overwrite(sitesByDomain, byDomain);
-			alchemy.overwrite(sitesByName, byName);
-			alchemy.overwrite(sitesById, byId);
-
-			// Emit the siteUpdate event
-			that.emit('siteUpdate', sitesById, sitesByDomain, sitesByName);
-
-			if (callback) {
-				callback(sitesById, sitesByDomain, sitesByName);
-			}
-		});
-	};
+	
 });
