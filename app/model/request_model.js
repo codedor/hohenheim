@@ -61,8 +61,6 @@ Model.extend(function RequestModel() {
 	 * @param    {Object}   data   The data to save
 	 */
 	this.registerHit = function registerHit(data) {
-		// We're going to use native mongoose saving, which is faster
-		var doc = new this._model(data);
-		doc.save();
+		this.save(data);
 	};
 });

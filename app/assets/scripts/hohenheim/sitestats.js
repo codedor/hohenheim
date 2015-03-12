@@ -18,6 +18,7 @@ var updateSite = function updateSite(siteId) {
 	}
 
 	$this = $('div[data-site-stats][data-site-id="' + siteId + '"]');
+	$logs = $('div[data-site-logs][data-site-id="' + siteId + '"]');
 
 	hawkejs.getResource('sitestat', {id: siteId}, function(result) {
 
@@ -93,6 +94,60 @@ var updateSite = function updateSite(siteId) {
 					toastr.success('Process ' + $this.attr('data-kill-pid') + ' has been killed');
 					updateSite(siteId);
 				}
+			});
+		});
+	});
+
+	// Show available logs
+	hawkejs.getResource('sitestat-logs', {id: siteId}, function(result) {
+
+		var html = '';
+
+		html += '<table class="table table-striped">';
+		html += '<tr><th></th><th>Created</th><th>Updated</th></tr>';
+
+		result.forEach(function eachResult(entry) {
+			html += '<tr><td><button class="btn" data-log-id="' + entry._id + '">View</button></td>';
+			html += '<td>' + entry.created + '</td>';
+			html += '<td>' + entry.updated + '</td>';
+			html += '</tr>';
+		});
+
+		html += '</table>';
+		$logs.html(html);
+
+		$logs.on('click', 'button[data-log-id]', function(e) {
+
+			var $this = $(this);
+			e.preventDefault();
+
+			hawkejs.getResource('sitestat-log', {logid: $this.data('log-id')}, function(log) {
+
+				var prevdate;
+
+				$view = $('#sitelogview');
+
+				// Clear html
+				$view.html('');
+
+				log.log.forEach(function(line) {
+
+					var newdate = ''+(new Date(line.time)),
+					    html;
+
+					html = '<div title="' + (new Date(line.time)) + '" style="position:relative;">';
+
+					if (newdate != prevdate) {
+						html += '<span style="position:absolute;right:0;">' + (new Date(line.time)) + '</span>';
+					}
+
+					html += line.html.replace(/\n/g, '<br>\n');
+					html += '</div>';
+
+					prevdate = newdate;
+
+					$view.append(html);
+				});
 			});
 		});
 	});

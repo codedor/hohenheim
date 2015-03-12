@@ -44,8 +44,8 @@ Model.extend(function SiteModel() {
 					'url'
 				]
 			},
-			stats: {
-				title: 'Stats',
+			control: {
+				title: 'Control',
 				fields: [
 					{
 						field: '_id',

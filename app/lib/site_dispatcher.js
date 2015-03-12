@@ -3,7 +3,8 @@ var Fuery     = alchemy.use('fuery'),
     httpProxy = require('http-proxy'),
     http      = require('http'),
     path      = require('path'),
-    procmon   = require('process-monitor');
+    procmon   = require('process-monitor'),
+    ansiHTML  = require('ansi-html');
 
 /**
  * The Site Dispatcher class
@@ -340,6 +341,15 @@ alchemy.create(function Site() {
 		// The request log model
 		this.Log = Model.get('Request');
 
+		// The ProcLog
+		this.Proclog = Model.get('Proclog');
+
+		// The ProcLog record
+		this.proclog_id = null;
+
+		// The message array
+		this.procarray = [];
+
 		this.update(record);
 	};
 
@@ -348,7 +358,7 @@ alchemy.create(function Site() {
 	 *
 	 * @author   Jelle De Loecker   <jelle@codedor.be>
 	 * @since    0.0.1
-	 * @version  0.0.1
+	 * @version  0.0.2
 	 *
 	 * @param    {Function}   callback
 	 */
@@ -363,7 +373,46 @@ alchemy.create(function Site() {
 		port = this.parent.getPort(this);
 
 		// Start the server
-		process = child.fork(this.script, ['--port=' + port, 'hohenchild'], {cwd: this.cwd});
+		process = child.fork(this.script, ['--port=' + port, 'hohenchild'], {cwd: this.cwd, silent: true});
+
+		// Get the child process' output
+		process.stdout.on('data', function onData(data) {
+
+			Function.series(function getId(next) {
+				if (that.proclog_id) {
+					return next();
+				}
+
+				that.Proclog.save({
+					site_id: that.id,
+					log: []
+				}, function saved(err, data) {
+
+					if (err) {
+						return next(err);
+					}
+
+					that.proclog_id = data[0].item._id;
+					next();
+				});
+			}, function done(err) {
+
+				var str;
+
+				if (err) {
+					log.error('Error saving proclog', {err: err});
+					return;
+				}
+
+				str = data.toString();
+				that.procarray.push({time: Date.now(), html: ansiHTML(str)});
+
+				that.Proclog.save({
+					_id: that.proclog_id,
+					log: that.procarray
+				});
+			});
+		});
 
 		// Store the port it should be running on
 		process.port = port;
@@ -781,4 +830,58 @@ Resource.register('sitestat-start', function(data, callback) {
 	site.start();
 
 	callback({success: 'process started'});
+});
+
+/**
+ * Get available logs
+ *
+ * @author   Jelle De Loecker   <jelle@kipdola.be>
+ * @since    0.0.2
+ * @version  0.0.2
+ */
+Resource.register('sitestat-logs', function(data, callback) {
+
+	var siteId = alchemy.castObjectId(data.id),
+	    result = {},
+	    Proclog = Model.get('Proclog'),
+	    process,
+	    site,
+	    pid;
+
+	if (!siteId) {
+		return callback({err: 'no id given'});
+	}
+
+	site = alchemy.dispatcher.ids[siteId];
+
+	if (!site) {
+		return callback({err: 'site does not exist'});
+	}
+
+	Proclog.find('all', {conditions: {site_id: siteId}, fields: ['_id', 'created', 'updated']}, function(err, data) {
+		data = Object.extract(data, '$..Proclog');
+		callback(data);
+	});
+});
+
+/**
+ * Get log
+ *
+ * @author   Jelle De Loecker   <jelle@kipdola.be>
+ * @since    0.0.2
+ * @version  0.0.2
+ */
+Resource.register('sitestat-log', function(data, callback) {
+
+	var logId  = alchemy.castObjectId(data.logid),
+	    Proclog = Model.get('Proclog');
+
+	if (!logId) {
+		return callback({err: 'no id given'});
+	}
+
+	Proclog.find('all', {conditions: {_id: logId}}, function(err, data) {
+		data = Object.extract(data, '$..Proclog');
+		callback(data);
+	});
 });
