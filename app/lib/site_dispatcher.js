@@ -860,6 +860,7 @@ Resource.register('sitestat-logs', function(data, callback) {
 
 	Proclog.find('all', {conditions: {site_id: siteId}, fields: ['_id', 'created', 'updated']}, function(err, data) {
 		data = Object.extract(data, '$..Proclog');
+		data = Array.cast(data);
 		callback(data);
 	});
 });
