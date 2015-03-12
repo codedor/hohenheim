@@ -344,12 +344,6 @@ alchemy.create(function Site() {
 		// The ProcLog
 		this.Proclog = Model.get('Proclog');
 
-		// The ProcLog record
-		this.proclog_id = null;
-
-		// The message array
-		this.procarray = [];
-
 		this.update(record);
 	};
 
@@ -375,11 +369,14 @@ alchemy.create(function Site() {
 		// Start the server
 		process = child.fork(this.script, ['--port=' + port, 'hohenchild'], {cwd: this.cwd, silent: true});
 
+		process.proclog_id = null;
+		process.procarray = [];
+
 		// Get the child process' output
 		process.stdout.on('data', function onData(data) {
 
 			Function.series(function getId(next) {
-				if (that.proclog_id) {
+				if (process.proclog_id) {
 					return next();
 				}
 
@@ -392,7 +389,7 @@ alchemy.create(function Site() {
 						return next(err);
 					}
 
-					that.proclog_id = data[0].item._id;
+					process.proclog_id = data[0].item._id;
 					next();
 				});
 			}, function done(err) {
@@ -405,11 +402,11 @@ alchemy.create(function Site() {
 				}
 
 				str = data.toString();
-				that.procarray.push({time: Date.now(), html: ansiHTML(str)});
+				process.procarray.push({time: Date.now(), html: ansiHTML(str)});
 
 				that.Proclog.save({
-					_id: that.proclog_id,
-					log: that.procarray
+					_id: process.proclog_id,
+					log: process.procarray
 				});
 			});
 		});
